@@ -1,0 +1,13 @@
+services:
+  oar-ocr-web:
+    build: .
+    ports:
+      - "3000:3000"
+    volumes:
+      # 持久化模型缓存，避免每次重启重新下载
+      - ./models:/app/models
+    environment:
+      - RUST_LOG=info
+      - OAR_HOME=/app/models
+      - PORT=3000
+    restart: unless-stopped

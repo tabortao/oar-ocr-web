@@ -1,0 +1,9 @@
+target/
+Reference/
+.git/
+.workbuddy/
+*.md
+!Cargo.toml
+Dockerfile
+docker-compose.yml
+.dockerignore

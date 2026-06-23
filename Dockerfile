@@ -31,10 +31,17 @@ COPY --from=builder /app/target/release/oar-ocr-web /usr/local/bin/oar-ocr-web
 # 复制静态文件
 COPY static/ /app/static/
 
-# 模型缓存目录
+# 复制预下载的模型文件（构建镜像时需先执行 download_models.ps1）
+COPY models/ /app/models/
+
+# 模型缓存目录（内置模型，无需持久化卷）
 ENV OAR_HOME=/app/models
+
+# OCR 请求日志目录
+ENV LOG_DIR=/app/logs
+ENV LOG_RETENTION_DAYS=30
 
 WORKDIR /app
 EXPOSE 3000
 
-ENTRYPOINT ["oar-ocr-web"]
+CMD ["oar-ocr-web"]

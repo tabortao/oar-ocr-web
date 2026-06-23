@@ -4,10 +4,12 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      # 持久化模型缓存，避免每次重启重新下载
-      - ./models:/app/models
+      # 持久化 OCR 请求日志
+      - ./logs:/app/logs
     environment:
       - RUST_LOG=info
       - OAR_HOME=/app/models
       - PORT=3000
+      - LOG_DIR=/app/logs
+      - LOG_RETENTION_DAYS=30
     restart: unless-stopped

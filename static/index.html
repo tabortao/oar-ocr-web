@@ -1,76 +1,149 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>OCR 文字识别 — powered by oar-ocr</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>oar-ocr-web</title>
+    <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
-    <div class="container">
-        <header>
-            <h1>🔍 OCR 文字识别</h1>
-            <p class="subtitle">PP-OCRv6 small · oar-ocr · PaddleOCR 兼容 API</p>
-        </header>
 
-        <main>
-            <!-- 上传区域 -->
-            <section class="upload-section">
-                <div id="drop-zone" class="drop-zone">
-                    <div class="drop-zone-content">
-                        <svg class="upload-icon" viewBox="0 0 24 24" width="48" height="48">
-                            <path fill="currentColor" d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
-                        </svg>
-                        <p>拖拽图片到此处 或 <span class="browse-link">点击上传</span></p>
-                        <p class="hint">支持 JPG / PNG / BMP / WebP</p>
-                    </div>
-                    <input type="file" id="file-input" accept="image/jpeg,image/png,image/bmp,image/webp,image/tiff" hidden>
-                </div>
-            </section>
-
-            <!-- 加载状态 -->
-            <section id="loading-section" class="loading-section" style="display:none;">
-                <div class="spinner"></div>
-                <p>正在识别中，请稍候...</p>
-            </section>
-
-            <!-- 结果区域 -->
-            <section id="result-section" class="result-section" style="display:none;">
-                <!-- 图片预览 + 检测框 -->
-                <div class="image-preview">
-                    <h3>📷 检测结果可视化</h3>
-                    <div class="canvas-container">
-                        <canvas id="result-canvas"></canvas>
-                    </div>
-                </div>
-
-                <!-- 文字结果列表 -->
-                <div class="text-results">
-                    <div class="text-results-header">
-                        <h3>📝 识别结果 (<span id="result-count">0</span> 条)</h3>
-                        <button id="copy-all-btn" class="btn btn-primary">
-                            <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
-                            一键复制
-                        </button>
-                    </div>
-                    <div id="text-list" class="text-list"></div>
-                </div>
-            </section>
-
-            <!-- 错误提示 -->
-            <section id="error-section" class="error-section" style="display:none;">
-                <div class="error-card">
-                    <span class="error-icon">⚠️</span>
-                    <p id="error-message"></p>
-                </div>
-            </section>
-        </main>
-
-        <footer>
-            <p>Powered by <a href="https://github.com/quininer/oar" target="_blank">oar-ocr</a> — PP-OCRv6 small</p>
-        </footer>
+<!-- Token 登录遮罩 -->
+<div id="login-overlay">
+    <div class="login-card">
+        <h2>oar-ocr-web</h2>
+        <p>请输入访问 Token</p>
+        <input type="password" id="login-input" placeholder="输入 Token..." />
+        <button id="login-btn">验证</button>
+        <p id="login-error" class="login-error"></p>
     </div>
+</div>
 
-    <script src="/static/app.js"></script>
+<!-- 主界面 -->
+<div id="main-app" style="display: none">
+
+    <header>
+        <h1>oar-ocr-web</h1>
+        <p class="subtitle">基于 PP-OCRv6 small + PP-DocLayout_plus-L</p>
+    </header>
+
+    <!-- Tab 切换 -->
+    <nav class="tab-nav">
+        <button class="tab-btn active" data-tab="ocr">文本 OCR</button>
+        <button class="tab-btn" data-tab="structure">结构分析</button>
+    </nav>
+
+    <!-- ===== 文本 OCR Panel ===== -->
+    <section id="panel-ocr" class="panel active">
+        <!-- 上传区域 -->
+        <div id="drop-zone">
+            <div class="drop-icon">
+                <svg viewBox="0 0 24 24" width="40" height="40"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15.01l1.41 1.41L11 14.84V19h2v-4.16l1.59 1.59L16 15.01 12 11l-4 4.01z"/></svg>
+            </div>
+            <p>拖拽图片到此处，或点击上传</p>
+            <p class="drop-hint">支持 JPG / PNG / BMP / WebP / TIFF</p>
+            <input type="file" id="file-input" accept="image/*" hidden />
+        </div>
+
+        <!-- 图床链接输入 -->
+        <div class="url-input-row">
+            <input type="text" id="url-input" placeholder="或输入图片链接 (HTTP/HTTPS)..." />
+            <button id="url-btn">识别链接</button>
+        </div>
+
+        <!-- 加载中 -->
+        <div id="loading-section" style="display: none">
+            <div class="spinner"></div>
+            <p>正在识别中...</p>
+        </div>
+
+        <!-- 错误提示 -->
+        <div id="error-section" style="display: none">
+            <p class="error-text" id="error-message"></p>
+        </div>
+
+        <!-- 结果区域 -->
+        <div id="result-section" style="display: none">
+            <div class="result-header">
+                <h3>识别结果 (<span id="result-count">0</span> 个文本区域)</h3>
+                <button id="copy-all-btn">一键复制</button>
+            </div>
+            <div class="result-body">
+                <div class="result-image">
+                    <canvas id="result-canvas"></canvas>
+                </div>
+                <div class="result-list" id="text-list"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== 结构分析 Panel ===== -->
+    <section id="panel-structure" class="panel">
+        <div id="s-drop-zone">
+            <div class="drop-icon">
+                <svg viewBox="0 0 24 24" width="40" height="40"><path fill="currentColor" d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11zM8 15.01l1.41 1.41L11 14.84V19h2v-4.16l1.59 1.59L16 15.01 12 11l-4 4.01z"/></svg>
+            </div>
+            <p>拖拽文档图片，或点击上传</p>
+            <p class="drop-hint">布局检测 + 表格识别</p>
+            <input type="file" id="s-file-input" accept="image/*" hidden />
+        </div>
+
+        <div class="url-input-row">
+            <input type="text" id="s-url-input" placeholder="或输入文档图片链接..." />
+            <button id="s-url-btn">分析链接</button>
+        </div>
+
+        <div id="s-loading-section" style="display: none">
+            <div class="spinner"></div>
+            <p>正在分析文档结构...</p>
+        </div>
+
+        <div id="s-error-section" style="display: none">
+            <p class="error-text" id="s-error-message"></p>
+        </div>
+
+        <div id="s-result-section" style="display: none">
+            <div class="s-result-header">
+                <h3>结构分析结果</h3>
+                <div class="s-result-actions">
+                    <button id="s-copy-md-btn">复制 Markdown</button>
+                    <button id="s-copy-html-btn">复制 HTML</button>
+                </div>
+            </div>
+
+            <!-- Tabs: 布局 / 表格 / Markdown -->
+            <nav class="s-tab-nav">
+                <button class="s-tab-btn active" data-stab="layout">布局元素 (<span id="s-layout-count">0</span>)</button>
+                <button class="s-tab-btn" data-stab="tables">表格 (<span id="s-table-count">0</span>)</button>
+                <button class="s-tab-btn" data-stab="formulas">公式 (<span id="s-formula-count">0</span>)</button>
+                <button class="s-tab-btn" data-stab="charts">图表 (<span id="s-chart-count">0</span>)</button>
+                <button class="s-tab-btn" data-stab="markdown">Markdown</button>
+                <button class="s-tab-btn" data-stab="html">HTML 预览</button>
+            </nav>
+
+            <div id="s-panel-layout" class="s-panel active">
+                <div id="s-layout-list"></div>
+            </div>
+            <div id="s-panel-tables" class="s-panel">
+                <div id="s-tables-list"></div>
+            </div>
+            <div id="s-panel-formulas" class="s-panel">
+                <div id="s-formulas-list"></div>
+            </div>
+            <div id="s-panel-charts" class="s-panel">
+                <div id="s-charts-list"></div>
+            </div>
+            <div id="s-panel-markdown" class="s-panel">
+                <pre><code id="s-markdown-code"></code></pre>
+            </div>
+            <div id="s-panel-html" class="s-panel">
+                <iframe id="s-html-preview" sandbox="allow-same-origin"></iframe>
+            </div>
+        </div>
+    </section>
+
+</div>
+
+<script src="/static/app.js"></script>
 </body>
 </html>

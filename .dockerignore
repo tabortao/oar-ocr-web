@@ -7,3 +7,5 @@ Reference/
 Dockerfile
 docker-compose.yml
 .dockerignore
+download_models.ps1
+*.ps1

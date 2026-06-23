@@ -1,6 +1,6 @@
 [package]
 name = "oar-ocr-web"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 description = "PaddleOCR-compatible web API service powered by oar-ocr (PP-OCRv6 small)"
 

@@ -164,6 +164,7 @@ var errorSection = document.getElementById("error-section");
 var errorMessage = document.getElementById("error-message");
 var resultCanvas = document.getElementById("result-canvas");
 var resultCount = document.getElementById("result-count");
+var resultTime = document.getElementById("result-time");
 var textList = document.getElementById("text-list");
 var copyAllBtn = document.getElementById("copy-all-btn");
 
@@ -212,10 +213,16 @@ copyAllBtn.addEventListener("click", function () {
     copyText(t);
 });
 
+function formatDuration(ms) {
+    if (ms < 1000) return ms.toFixed(0) + " ms";
+    return (ms / 1000).toFixed(2) + " s";
+}
+
 async function handleFile(file) {
     hideError();
     hideResult();
     showLoading();
+    var startTime = performance.now();
 
     try {
         var fd = new FormData();
@@ -235,6 +242,7 @@ async function handleFile(file) {
         currentResults = data.results || [];
         currentImage = file;
         await renderResults(file, currentResults);
+        resultTime.textContent = "总耗时: " + formatDuration(performance.now() - startTime);
         hideLoading();
         showResult();
     } catch (err) {
@@ -247,6 +255,7 @@ async function handleUrl(url) {
     hideError();
     hideResult();
     showLoading();
+    var startTime = performance.now();
 
     try {
         var resp = await fetch("/api/ocr/json", {
@@ -272,6 +281,7 @@ async function handleUrl(url) {
             console.warn("图片加载失败，仅显示文字结果:", e.message);
             renderTextList(currentResults);
         }
+        resultTime.textContent = "总耗时: " + formatDuration(performance.now() - startTime);
         hideLoading();
         showResult();
     } catch (err) {
@@ -446,6 +456,7 @@ var sFormulaCount = document.getElementById("s-formula-count");
 var sFormulasList = document.getElementById("s-formulas-list");
 var sChartCount = document.getElementById("s-chart-count");
 var sChartsList = document.getElementById("s-charts-list");
+var sResultTime = document.getElementById("s-result-time");
 var sMdCode = document.getElementById("s-markdown-code");
 var sHtmlPreview = document.getElementById("s-html-preview");
 var sCopyMd = document.getElementById("s-copy-md-btn");
@@ -510,6 +521,7 @@ async function handleSFile(file) {
     hideSError();
     hideSResult();
     showSLoading();
+    var startTime = performance.now();
 
     try {
         var fd = new FormData();
@@ -525,6 +537,7 @@ async function handleSFile(file) {
             throw new Error(data.message || "结构分析失败");
         }
         renderStructure(data);
+        sResultTime.textContent = "总耗时: " + formatDuration(performance.now() - startTime);
         hideSLoading();
         showSResult();
     } catch (err) {
@@ -537,6 +550,7 @@ async function handleSUrl(url) {
     hideSError();
     hideSResult();
     showSLoading();
+    var startTime = performance.now();
 
     try {
         var resp = await fetch("/api/structure/json", {
@@ -549,6 +563,7 @@ async function handleSUrl(url) {
             throw new Error(data.message || "结构分析失败");
         }
         renderStructure(data);
+        sResultTime.textContent = "总耗时: " + formatDuration(performance.now() - startTime);
         hideSLoading();
         showSResult();
     } catch (err) {

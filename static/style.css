@@ -344,6 +344,17 @@ header .subtitle {
 .confidence-mid  { color: var(--color-mid); }
 .confidence-low  { color: var(--color-low); }
 
+.result-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.result-time {
+    font-size: 13px;
+    color: var(--color-text-muted);
+}
+
 #copy-all-btn {
     padding: 8px 16px;
     background: var(--color-primary);
@@ -365,7 +376,7 @@ header .subtitle {
     border-bottom: 1px solid var(--color-border);
 }
 
-.s-result-actions { display: flex; gap: 8px; }
+.s-result-actions { display: flex; align-items: center; gap: 8px; }
 
 .s-result-actions button {
     padding: 6px 14px;

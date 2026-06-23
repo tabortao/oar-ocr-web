@@ -16,7 +16,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  # ===== Build & Test =====
+  # ===== Build & Test (Linux) =====
   build-test:
     runs-on: ubuntu-latest
     steps:
@@ -37,6 +37,42 @@ jobs:
 
       - name: Run tests
         run: cargo test
+
+  # ===== Build Windows Binary =====
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          show-progress: false
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+
+      - name: Build Windows executable
+        run: cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Package Windows executable
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist/oar-ocr-web -Force
+          Copy-Item target/x86_64-pc-windows-msvc/release/oar-ocr-web.exe dist/oar-ocr-web/
+          Copy-Item -Recurse static dist/oar-ocr-web/
+          Copy-Item download_models.ps1 dist/oar-ocr-web/
+          Compress-Archive -Path dist/oar-ocr-web -DestinationPath oar-ocr-web-windows-amd64.zip
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: oar-ocr-web-windows-amd64
+          path: oar-ocr-web-windows-amd64.zip
 
   # ===== Docker Build & Push =====
   docker:
@@ -88,7 +124,7 @@ jobs:
 
   # ===== Release Binaries =====
   release:
-    needs: build-test
+    needs: [build-test, build-windows]
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ${{ matrix.os }}
     permissions:
@@ -99,9 +135,11 @@ jobs:
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact: oar-ocr-web-linux-amd64
+            rustflags: "-C link-arg=-lstdc++"
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact: oar-ocr-web-windows-amd64
+            rustflags: ""
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -119,7 +157,7 @@ jobs:
 
       - name: Build
         env:
-          RUSTFLAGS: "-C link-arg=-lstdc++"
+          RUSTFLAGS: ${{ matrix.rustflags }}
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Package (Linux)

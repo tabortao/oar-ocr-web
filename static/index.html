@@ -66,7 +66,10 @@
         <div id="result-section" style="display: none">
             <div class="result-header">
                 <h3>识别结果 (<span id="result-count">0</span> 个文本区域)</h3>
-                <button id="copy-all-btn">一键复制</button>
+                <div class="result-meta">
+                    <span id="result-time" class="result-time"></span>
+                    <button id="copy-all-btn">一键复制</button>
+                </div>
             </div>
             <div class="result-body">
                 <div class="result-image">
@@ -106,6 +109,7 @@
             <div class="s-result-header">
                 <h3>结构分析结果</h3>
                 <div class="s-result-actions">
+                    <span id="s-result-time" class="result-time"></span>
                     <button id="s-copy-md-btn">复制 Markdown</button>
                     <button id="s-copy-html-btn">复制 HTML</button>
                 </div>

@@ -1,3 +1,3 @@
 [target.x86_64-unknown-linux-gnu]
-# ONNX Runtime 静态库需要显式链接 math、dl 和 pthread
-rustflags = ["-C", "link-arg=-lm", "-C", "link-arg=-ldl", "-C", "link-arg=-lpthread"]
+# ONNX Runtime 静态库需要显式链接 C++ 标准库
+rustflags = ["-C", "link-arg=-lstdc++"]

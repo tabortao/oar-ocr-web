@@ -42,4 +42,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed frontend: now auto-detects whether auth is required and skips login when no token is configured
 - Fixed frontend: image URL OCR results now display correctly even when canvas rendering fails due to CORS
 - Fixed `civil_from_days` test using wrong Unix epoch day count for 2026-06-23
-- Fixed Docker Linux build linker errors with ONNX Runtime static library by adding `.cargo/config.toml` with `-lm -ldl -lpthread`
+- Fixed Docker Linux build linker errors by upgrading base image to `debian:trixie` (glibc 2.38+ required by ONNX Runtime)

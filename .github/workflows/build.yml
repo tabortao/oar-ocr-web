@@ -76,11 +76,15 @@ jobs:
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
+        env:
+          BUILDKIT_PROGRESS: plain
         with:
           context: .
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          provenance: false
+          sbom: false
 
   # ===== Release Binaries =====
   release:
@@ -114,6 +118,8 @@ jobs:
         uses: swatinem/rust-cache@v2
 
       - name: Build
+        env:
+          RUSTFLAGS: "-C link-arg=-lstdc++"
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Package (Linux)

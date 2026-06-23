@@ -1,5 +1,6 @@
 # ─── Build Stage ───
-FROM rust:1.95-bookworm AS builder
+# ONNX Runtime 2.38+ 需要 glibc 2.38+，bookworm 只有 2.36，故使用 trixie
+FROM rust:1.85-trixie AS builder
 
 WORKDIR /app
 
@@ -26,7 +27,8 @@ COPY static/ static/
 RUN cargo build --release
 
 # ─── Runtime Stage ───
-FROM debian:bookworm-slim
+# 必须与 builder 使用相同或更高 glibc 版本
+FROM debian:trixie-slim
 
 # ONNX Runtime 运行时依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \

@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Docker configuration added log volume mount and environment variables (`LOG_DIR`, `LOG_RETENTION_DAYS`)
 - Docker models now bundled directly in image (no persistent volume needed); removed `docker-entrypoint.sh`
 - Default `OAR_HOME` changed to `models/` next to the executable (was `~/.oar`)
+- `docker-compose.yml` now uses prebuilt `ghcr.io/tabortao/oar-ocr-web:latest` image for NAS deployment
 
 ### Fixed
 - Suppressed `dead_code` warning for `StructureResponse::error` with `#[allow(dead_code)]`

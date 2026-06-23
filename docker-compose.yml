@@ -1,6 +1,7 @@
 services:
   oar-ocr-web:
-    build: .
+    image: ghcr.io/tabortao/oar-ocr-web:latest
+    container_name: oar-ocr-web
     ports:
       - "3000:3000"
     volumes:

@@ -41,3 +41,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed `$` character in token being interpreted as variable expansion by dotenvy (use `$$` to escape)
 - Fixed frontend: now auto-detects whether auth is required and skips login when no token is configured
 - Fixed frontend: image URL OCR results now display correctly even when canvas rendering fails due to CORS
+- Fixed `civil_from_days` test using wrong Unix epoch day count for 2026-06-23

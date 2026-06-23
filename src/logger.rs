@@ -187,8 +187,8 @@ mod tests {
 
     #[test]
     fn test_civil_from_days() {
-        // 2026-06-23
-        let (y, m, d) = civil_from_days(20630);
+        // 2026-06-23 = 20627 days since Unix epoch
+        let (y, m, d) = civil_from_days(20627);
         assert_eq!(y, 2026);
         assert_eq!(m, 6);
         assert_eq!(d, 23);

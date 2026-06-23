@@ -3,8 +3,17 @@ FROM rust:1.95-bookworm AS builder
 
 WORKDIR /app
 
+# 安装构建依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    pkg-config \
+    libssl-dev \
+    && rm -rf /var/lib/apt/lists/*
+
 # 先复制依赖清单，利用 Docker 缓存层
 COPY Cargo.toml Cargo.lock* ./
+COPY .cargo/ .cargo/
 # 创建空的 src 用于依赖预下载
 RUN mkdir src && echo "fn main() {}" > src/main.rs
 RUN cargo fetch || true

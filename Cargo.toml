@@ -18,3 +18,7 @@ anyhow = "1"
 base64 = "0.22"
 dotenvy = "0.15"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"] }
+
+[profile.release]
+# 静态链接 C/C++ 运行时，避免 glibc 版本依赖
+# 注意：此设置对 Windows MSVC 无影响

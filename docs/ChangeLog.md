@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - OCR request logging system (JSONL format) with configurable log directory and retention period
 - Automatic log cleanup for expired log files based on `LOG_RETENTION_DAYS`
 - Auto-download models to `models/` directory next to the executable on first startup
+- Linux/macOS model download script (`download_models.sh`)
+- GitHub Actions CI/CD workflow for automated Docker build, binary release, and testing
 
 ### Changed
 - Structure engine now lazy-loaded on demand and released after each request (~160MB memory saved at idle)

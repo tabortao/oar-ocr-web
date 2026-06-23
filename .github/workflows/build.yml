@@ -13,25 +13,27 @@ permissions:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  CARGO_TERM_COLOR: always
 
 jobs:
   # ===== Build & Test =====
   build-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: build-test
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
 
       - name: Build
-        run: cargo build --release 2>&1
+        run: cargo build --release
 
       - name: Run tests
-        run: cargo test 2>&1
+        run: cargo test
 
   # ===== Docker Build & Push =====
   docker:
@@ -42,7 +44,8 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Download OCR models
         run: bash download_models.sh
@@ -90,15 +93,16 @@ jobs:
             target: x86_64-pc-windows-msvc
             artifact: oar-ocr-web-windows-amd64
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
         with:
           targets: ${{ matrix.target }}
 
-      - uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.target }}
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
 
       - name: Build
         run: cargo build --release --target ${{ matrix.target }}

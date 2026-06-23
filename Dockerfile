@@ -1,16 +1,23 @@
 # ─── Build Stage ───
-# ONNX Runtime 2.38+ 需要 glibc 2.38+，bookworm 只有 2.36，故使用 trixie
-FROM rust:1.85-trixie AS builder
+# ONNX Runtime 2.38+ 需要 glibc 2.38+，Ubuntu 24.04 提供 glibc 2.39
+FROM ubuntu:24.04 AS builder
 
+ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /app
 
-# 安装构建依赖
+# 安装构建依赖和 Rust
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
-    cmake \
-    pkg-config \
+    curl \
+    ca-certificates \
     libssl-dev \
+    pkg-config \
+    cmake \
     && rm -rf /var/lib/apt/lists/*
+
+# 安装 Rust stable
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 # 先复制依赖清单，利用 Docker 缓存层
 COPY Cargo.toml Cargo.lock* ./
@@ -28,7 +35,9 @@ RUN cargo build --release
 
 # ─── Runtime Stage ───
 # 必须与 builder 使用相同或更高 glibc 版本
-FROM debian:trixie-slim
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
 
 # ONNX Runtime 运行时依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \

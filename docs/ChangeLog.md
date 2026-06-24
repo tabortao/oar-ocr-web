@@ -22,8 +22,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Windows build artifact packaging now produces single-layer zip (no nested folder)
 
 ### Fixed
-- Docker container crash loop on NAS: improved error logging and model initialization
-- Windows release zip no longer contains nested zip folder
+- Docker container crash loop: added `libssl3` runtime dependency for `oar-ocr` auto-download TLS support
+- Fixed entrypoint model file listing producing empty filename
 
 ## [0.1.1] - 2026-06-23
 

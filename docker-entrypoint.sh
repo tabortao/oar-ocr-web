@@ -50,7 +50,13 @@ else
 fi
 
 echo "模型文件列表:"
-ls -lh "$MODEL_DIR/" 2>/dev/null | awk '{print "  " $NF " (" $5 ")"}'
+for f in "$MODEL_DIR"/*; do
+    if [ -f "$f" ]; then
+        name=$(basename "$f")
+        size=$(du -h "$f" | cut -f1)
+        echo "  $name ($size)"
+    fi
+done
 
 echo "=== 启动 oar-ocr-web ==="
 exec "$@"

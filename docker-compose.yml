@@ -11,6 +11,7 @@ services:
       - ./logs:/app/logs
     environment:
       - RUST_LOG=info
+      - RUST_BACKTRACE=full
       - OAR_HOME=/app/models
       - PORT=3000
       - LOG_DIR=/app/logs

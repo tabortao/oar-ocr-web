@@ -39,9 +39,10 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ONNX Runtime 运行时依赖
+# ONNX Runtime 运行时依赖 + TLS 支持（ureq/oar-ocr auto-download 需要）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
+    libssl3 \
     ca-certificates \
     curl \
     && rm -rf /var/lib/apt/lists/*

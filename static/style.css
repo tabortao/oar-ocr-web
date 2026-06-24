@@ -582,6 +582,34 @@ header {
 
 @keyframes toast-in { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
+/* ===== Footer ===== */
+.site-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    text-align: center;
+    padding: 12px 16px;
+    color: var(--color-text-muted);
+    font-size: 12px;
+    background: var(--color-bg);
+    border-top: 1px solid var(--color-border);
+    z-index: 10;
+}
+
+.site-footer a {
+    color: var(--color-primary);
+    text-decoration: none;
+}
+
+.site-footer a:hover {
+    text-decoration: underline;
+}
+
+body {
+    padding-bottom: 48px;
+}
+
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
     .result-body { flex-direction: column; }

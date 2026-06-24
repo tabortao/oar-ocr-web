@@ -90,9 +90,6 @@ jobs:
           fetch-depth: 0
           show-progress: false
 
-      - name: Download OCR models
-        run: bash download_models.sh
-
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:

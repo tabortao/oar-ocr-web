@@ -54,10 +54,39 @@ async fn main() {
     }
 
     tracing::info!("正在启动 oar-ocr-web 服务...");
+    let cache_dir = oar_ocr::download::cache_dir();
     tracing::info!(
         "模型缓存目录: {}",
-        oar_ocr::download::cache_dir().display()
+        cache_dir.display()
     );
+    // 列出模型文件，便于排查
+    match std::fs::read_dir(&cache_dir) {
+        Ok(entries) => {
+            let models: Vec<_> = entries
+                .filter_map(|e| e.ok())
+                .filter_map(|e| {
+                    let name = e.file_name().to_string_lossy().to_string();
+                    let size = e.metadata().ok().map(|m| m.len()).unwrap_or(0);
+                    if name.ends_with(".onnx") || name.ends_with(".txt") || name.ends_with(".json") {
+                        Some((name, size))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            if models.is_empty() {
+                tracing::warn!("模型目录中没有找到模型文件，首次启动将自动下载");
+            } else {
+                tracing::info!("已找到 {} 个模型文件:", models.len());
+                for (name, size) in &models {
+                    tracing::info!("  - {} ({} MB)", name, size / 1024 / 1024);
+                }
+            }
+        }
+        Err(_) => {
+            tracing::warn!("无法读取模型目录: {}", cache_dir.display());
+        }
+    }
 
     // 创建 HTTP 客户端（用于图床链接下载）
     let http_client = reqwest::Client::builder()
@@ -68,7 +97,17 @@ async fn main() {
 
     // 初始化 OCR 引擎 (首次运行会从 ModelScope 下载模型)
     tracing::info!("正在初始化文本 OCR 引擎 (PP-OCRv6 small)...");
-    let ocr = ocr_engine::build_ocr_engine().expect("OCR 引擎初始化失败");
+    let ocr = match ocr_engine::build_ocr_engine() {
+        Ok(engine) => engine,
+        Err(e) => {
+            tracing::error!("OCR 引擎初始化失败: {e}");
+            tracing::error!("请检查:");
+            tracing::error!("  1. OAR_HOME 环境变量是否正确: {}", std::env::var("OAR_HOME").unwrap_or_default());
+            tracing::error!("  2. 模型文件是否存在: {}", oar_ocr::download::cache_dir().display());
+            tracing::error!("  3. 网络是否可访问 ModelScope (首次下载需要)");
+            std::process::exit(1);
+        }
+    };
 
     // 结构 OCR 引擎按需加载，不在启动时初始化（节省 ~160MB 内存）
     tracing::info!("结构 OCR 引擎设为按需加载模式");
@@ -127,9 +166,17 @@ async fn main() {
     let addr = format!("0.0.0.0:{port}");
     tracing::info!("服务已启动: http://{addr}");
 
-    let listener = tokio::net::TcpListener::bind(&addr)
-        .await
-        .expect("绑定地址失败");
+    let listener = match tokio::net::TcpListener::bind(&addr).await {
+        Ok(l) => l,
+        Err(e) => {
+            tracing::error!("绑定地址 {addr} 失败: {e}");
+            tracing::error!("请检查端口是否被占用: netstat -ano | findstr :{port}");
+            std::process::exit(1);
+        }
+    };
 
-    axum::serve(listener, app).await.expect("服务运行出错");
+    if let Err(e) = axum::serve(listener, app).await {
+        tracing::error!("服务运行出错: {e}");
+        std::process::exit(1);
+    }
 }

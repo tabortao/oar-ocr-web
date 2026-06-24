@@ -7,10 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.2] - 2026-06-24
 ### Added
-- Added favicon and logo support; PWA manifest, Service Worker, and responsive mobile layout
+- Favicon and logo support; PWA manifest, Service Worker, and responsive mobile layout
+- Footer with copyright and GitHub link
+- Docker model volume persistence: container downloads models from ModelScope on first run to mounted volume
+- Docker HEALTHCHECK for container health monitoring
+- Startup model file listing for easier debugging
 
 ### Changed
 - Bumped version to 0.1.2
+- Docker models now persist across container updates via volume mount (`./models:/app/models`), downloaded on first run from ModelScope
+- Docker entrypoint script auto-downloads models from ModelScope on first run
+- Replaced `expect()` panics with graceful error handling and detailed logging
+- Release binaries now include version number in filename (e.g. `oar-ocr-web-v0.1.2-windows-amd64.zip`)
+- Windows build artifact packaging now produces single-layer zip (no nested folder)
+
+### Fixed
+- Docker container crash loop on NAS: improved error logging and model initialization
+- Windows release zip no longer contains nested zip folder
 
 ## [0.1.1] - 2026-06-23
 

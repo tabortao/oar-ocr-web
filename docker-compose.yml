@@ -5,6 +5,8 @@ services:
     ports:
       - "3000:3000"
     volumes:
+      # 持久化 OCR 模型文件（首次启动自动从镜像复制，后续更新无需重新下载）
+      - ./models:/app/models
       # 持久化 OCR 请求日志
       - ./logs:/app/logs
     environment:

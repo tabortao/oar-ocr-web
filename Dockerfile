@@ -43,6 +43,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制构建产物
@@ -51,10 +52,11 @@ COPY --from=builder /app/target/release/oar-ocr-web /usr/local/bin/oar-ocr-web
 # 复制静态文件
 COPY static/ /app/static/
 
-# 复制预下载的模型文件（构建镜像时需先执行 download_models.ps1）
-COPY models/ /app/models/
+# 复制启动脚本
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# 模型缓存目录（内置模型，无需持久化卷）
+# 模型缓存目录（卷挂载点，持久化，首次启动自动下载）
 ENV OAR_HOME=/app/models
 
 # OCR 请求日志目录
@@ -64,7 +66,11 @@ ENV LOG_RETENTION_DAYS=30
 WORKDIR /app
 EXPOSE 3000
 
-# 确保日志目录存在（卷挂载时可能目录为空）
-RUN mkdir -p /app/logs
+# 确保目录存在
+RUN mkdir -p /app/logs /app/models
 
+HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=3 \
+    CMD curl -f http://localhost:3000/api/health || exit 1
+
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["oar-ocr-web"]

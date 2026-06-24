@@ -23,6 +23,9 @@ pub struct OcrResponse {
     pub total: Option<usize>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
+    /// 后端返回的原图 base64（用于绕过前端 CORS 显示处理后图片）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_base64: Option<String>,
 }
 
 impl OcrResponse {
@@ -33,6 +36,18 @@ impl OcrResponse {
             results: Some(results),
             total: Some(total),
             message: None,
+            image_base64: None,
+        }
+    }
+
+    pub fn success_with_image(results: Vec<OcrResult>, image_base64: String) -> Self {
+        let total = results.len();
+        Self {
+            status: "success".to_string(),
+            results: Some(results),
+            total: Some(total),
+            message: None,
+            image_base64: Some(image_base64),
         }
     }
 
@@ -42,6 +57,7 @@ impl OcrResponse {
             results: None,
             total: None,
             message: Some(msg.into()),
+            image_base64: None,
         }
     }
 }

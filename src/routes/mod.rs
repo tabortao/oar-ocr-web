@@ -237,6 +237,7 @@ pub async fn ocr_json_handler(
     let mut total_image_size: u64 = 0;
     let mut image_source = "base64";
     let mut image_url: Option<&str> = None;
+    let mut first_url_image_base64: Option<String> = None;
 
     for source in &body.images {
         let trimmed = source.trim();
@@ -244,14 +245,21 @@ pub async fn ocr_json_handler(
             continue;
         }
 
-        if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
+        let is_url = trimmed.starts_with("http://") || trimmed.starts_with("https://");
+        if is_url {
             image_source = "url";
             image_url = Some(trimmed);
         }
 
-        let img = resolve_image(&state.http_client, trimmed).await?;
+        let (raw_bytes, img) = resolve_image_with_bytes(&state.http_client, trimmed).await?;
         // 估算图片大小（RGB 像素 × 3）
         total_image_size += (img.width() as u64) * (img.height() as u64) * 3;
+
+        // 仅对首个 URL 图片返回 base64，用于前端预览
+        if is_url && first_url_image_base64.is_none() {
+            first_url_image_base64 = Some(bytes_to_data_url(&raw_bytes));
+        }
+
         let page_results = do_ocr(&state.ocr, img)?;
         all_results.extend(page_results);
     }
@@ -272,7 +280,11 @@ pub async fn ocr_json_handler(
         None,
     );
 
-    Ok(Json(OcrResponse::success(all_results)))
+    if let Some(image_base64) = first_url_image_base64 {
+        Ok(Json(OcrResponse::success_with_image(all_results, image_base64)))
+    } else {
+        Ok(Json(OcrResponse::success(all_results)))
+    }
 }
 
 // ===== 结构引擎懒加载 =====
@@ -412,6 +424,15 @@ async fn resolve_image(
     client: &reqwest::Client,
     source: &str,
 ) -> Result<image::RgbImage, AppError> {
+    let (_, img) = resolve_image_with_bytes(client, source).await?;
+    Ok(img)
+}
+
+/// 解析图片来源，同时返回原始字节和解码后的 RgbImage
+async fn resolve_image_with_bytes(
+    client: &reqwest::Client,
+    source: &str,
+) -> Result<(Vec<u8>, image::RgbImage), AppError> {
     let trimmed = source.trim();
 
     if trimmed.starts_with("http://") || trimmed.starts_with("https://") {
@@ -437,7 +458,8 @@ async fn resolve_image(
             return Err(AppError::ImageDownload("图片过大 (超过 20MB)".to_string()));
         }
 
-        img_from_bytes(&bytes)
+        let img = img_from_bytes(&bytes)?;
+        Ok((bytes.to_vec(), img))
     } else {
         // Base64 解码
         let encoded = if let Some(idx) = trimmed.find(";base64,") {
@@ -451,7 +473,34 @@ async fn resolve_image(
             .decode(encoded)
             .map_err(|e| AppError::Base64Decode(format!("解码失败: {e}")))?;
 
-        img_from_bytes(&bytes)
+        let img = img_from_bytes(&bytes)?;
+        Ok((bytes, img))
+    }
+}
+
+/// 将图片原始字节转换为前端可直接使用的 data URL
+fn bytes_to_data_url(bytes: &[u8]) -> String {
+    use base64::Engine;
+    let mime = image_mime_from_bytes(bytes).unwrap_or("image/png");
+    format!(
+        "data:{};base64,{}",
+        mime,
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    )
+}
+
+/// 根据图片魔数推断 MIME 类型
+fn image_mime_from_bytes(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.len() < 8 {
+        return None;
+    }
+    match &bytes[0..8] {
+        [0x89, 0x50, 0x4E, 0x47, ..] => Some("image/png"),
+        [0xFF, 0xD8, ..] => Some("image/jpeg"),
+        [0x42, 0x4D, ..] => Some("image/bmp"),
+        [0x52, 0x49, 0x46, 0x46, _, _, _, 0x57] => Some("image/webp"),
+        [0x49, 0x49, 0x2A, 0x00, ..] | [0x4D, 0x4D, 0x00, 0x2A, ..] => Some("image/tiff"),
+        _ => None,
     }
 }
 

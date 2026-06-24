@@ -262,6 +262,7 @@ header .subtitle {
 
 .result-body {
     display: flex;
+    flex-direction: row;
     gap: 0;
 }
 
@@ -270,21 +271,33 @@ header .subtitle {
     min-width: 0;
     background: #f1f5f9;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 12px;
+    padding: 16px;
+    border-right: 1px solid var(--color-border);
+}
+
+.result-image-title {
+    font-size: 14px;
+    color: var(--color-text);
+    margin-bottom: 12px;
+    font-weight: 600;
 }
 
 .result-image canvas {
     max-width: 100%;
     height: auto;
+    max-height: 600px;
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: var(--shadow);
 }
 
 .result-list {
-    width: 320px;
+    width: 360px;
     max-height: 600px;
     overflow-y: auto;
-    border-left: 1px solid var(--color-border);
     padding: 12px;
 }
 
@@ -553,6 +566,11 @@ header .subtitle {
 /* ===== Responsive ===== */
 @media (max-width: 768px) {
     .result-body { flex-direction: column; }
-    .result-list { width: 100%; border-left: none; border-top: 1px solid var(--color-border); }
+    .result-image {
+        border-right: none;
+        border-bottom: 1px solid var(--color-border);
+    }
+    .result-image canvas { max-height: 360px; }
+    .result-list { width: 100%; max-height: 360px; }
     .url-input-row { flex-direction: column; }
 }

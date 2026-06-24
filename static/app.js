@@ -272,12 +272,13 @@ async function handleUrl(url) {
         currentResults = data.results || [];
         currentImage = url;
 
-        // 尝试下载图片用于 Canvas 渲染，失败不影响结果显示
+        // 优先使用后端返回的 base64 图片绕过 CORS 限制
+        var imageSrc = data.image_base64 || url;
         try {
-            var img = await loadImageUrl(url);
+            var img = await loadImageUrl(imageSrc);
             await renderResultsImg(img, currentResults);
         } catch (e) {
-            // 图片加载失败（如 CORS 限制），仅显示文字结果
+            // 图片加载失败，仅显示文字结果
             console.warn("图片加载失败，仅显示文字结果:", e.message);
             renderTextList(currentResults);
         }

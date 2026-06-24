@@ -105,6 +105,14 @@ async fn main() {
         .route("/api/health", get(routes::health_handler))
         // 静态文件: /
         .route_service("/", ServeFile::new("static/index.html"))
+        // PWA 资源（根路径，便于浏览器直接访问）
+        .route_service("/site.webmanifest", ServeFile::new("static/site.webmanifest"))
+        .route_service("/favicon.ico", ServeFile::new("static/favicon.ico"))
+        .route_service("/favicon-16x16.png", ServeFile::new("static/favicon-16x16.png"))
+        .route_service("/favicon-32x32.png", ServeFile::new("static/favicon-32x32.png"))
+        .route_service("/apple-touch-icon.png", ServeFile::new("static/apple-touch-icon.png"))
+        .route_service("/android-chrome-192x192.png", ServeFile::new("static/android-chrome-192x192.png"))
+        .route_service("/android-chrome-512x512.png", ServeFile::new("static/android-chrome-512x512.png"))
         // 静态资源目录
         .nest_service("/static", ServeDir::new("static"))
         .layer(cors)

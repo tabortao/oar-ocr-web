@@ -2,8 +2,18 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#4f46e5" />
+    <meta name="description" content="基于 PP-OCRv6 的在线 OCR 识别服务，支持文本识别与文档结构分析" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="OCR Web" />
     <title>oar-ocr-web</title>
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="icon" type="image/x-icon" href="/favicon.ico" />
+    <link rel="manifest" href="/site.webmanifest" />
     <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
@@ -11,7 +21,10 @@
 <!-- Token 登录遮罩 -->
 <div id="login-overlay">
     <div class="login-card">
-        <h2>oar-ocr-web</h2>
+        <div class="brand">
+            <img src="/android-chrome-192x192.png" alt="Logo" class="brand-logo" />
+            <h2>oar-ocr-web</h2>
+        </div>
         <p>请输入访问 Token</p>
         <input type="password" id="login-input" placeholder="输入 Token..." />
         <button id="login-btn">验证</button>
@@ -24,7 +37,9 @@
 
     <header>
         <h1>oar-ocr-web</h1>
-        <p class="subtitle">基于 PP-OCRv6 small + PP-DocLayout_plus-L</p>
+        <p class="subtitle">
+            基于 PP-OCRv6 small + PP-DocLayout_plus-L
+        </p>
     </header>
 
     <!-- Tab 切换 -->
@@ -150,5 +165,12 @@
 </div>
 
 <script src="/static/app.js"></script>
+<script>
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw.js').catch(function(err) {
+            console.warn('Service Worker 注册失败:', err);
+        });
+    }
+</script>
 </body>
 </html>

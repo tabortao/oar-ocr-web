@@ -33,10 +33,10 @@ copy .env.example .env
 ### 3. Run
 
 ```powershell
-$env:OAR_HOME = "./models"; cargo run --release 2>&1
+$env:OAR_HOME = "./models"; cargo run --release
 
 # Enable logging    
-$env:OAR_HOME = "./models"; $env:LOG_DIR = "./logs"; $env:LOG_RETENTION_DAYS = "30"; cargo run --release 2>&1
+$env:OAR_HOME = "./models"; $env:LOG_DIR = "./logs"; $env:LOG_RETENTION_DAYS = "30"; cargo run --release
 ```
 
 The service starts at `http://localhost:3000`.

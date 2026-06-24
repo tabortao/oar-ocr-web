@@ -175,11 +175,12 @@ jobs:
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Path dist/oar-ocr-web -Force
-          Copy-Item target/${{ matrix.target }}/release/oar-ocr-web.exe dist/oar-ocr-web/
-          Copy-Item -Recurse static dist/oar-ocr-web/
-          Copy-Item download_models.ps1 dist/oar-ocr-web/
-          Compress-Archive -Path dist/oar-ocr-web -DestinationPath ${{ matrix.artifact_prefix }}-${{ env.VERSION }}.zip
+          $tmp = "dist/oar-ocr-web"
+          New-Item -ItemType Directory -Path $tmp -Force
+          Copy-Item target/${{ matrix.target }}/release/oar-ocr-web.exe $tmp/
+          Copy-Item -Recurse static $tmp/
+          Copy-Item download_models.ps1 $tmp/
+          Compress-Archive -Path "$tmp/*" -DestinationPath ${{ matrix.artifact_prefix }}-${{ env.VERSION }}.zip
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4

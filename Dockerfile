@@ -64,4 +64,7 @@ ENV LOG_RETENTION_DAYS=30
 WORKDIR /app
 EXPOSE 3000
 
+# 确保日志目录存在（卷挂载时可能目录为空）
+RUN mkdir -p /app/logs
+
 CMD ["oar-ocr-web"]

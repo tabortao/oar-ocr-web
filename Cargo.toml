@@ -22,3 +22,7 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 [profile.release]
 # 静态链接 C/C++ 运行时，避免 glibc 版本依赖
 # 注意：此设置对 Windows MSVC 无影响
+lto = true
+strip = true
+opt-level = 3
+codegen-units = 1

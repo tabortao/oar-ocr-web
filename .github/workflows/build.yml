@@ -97,9 +97,7 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           provenance: false
           sbom: false
-          # 允许重试拉取基础镜像，应对 Docker Hub 临时 502
           pull: true
-        retry: 2
 
   # ===== Release Binaries =====
   release:

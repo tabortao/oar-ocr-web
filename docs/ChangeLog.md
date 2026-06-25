@@ -9,10 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Docker container crash loop: `ort-sys` downloads ONNX Runtime as a shared library (`libonnxruntime.so`) at build time, but only the binary was copied to the runtime image — now the `.so` files are collected from the builder stage and copied to `/usr/local/lib/` with `ldconfig` registration
 - Added `libstdc++6` to runtime image explicitly (ONNX Runtime C++ dependency)
+- Added `ORT_DYLIB_PATH` and `LD_LIBRARY_PATH` environment variables for `ort` `load-dynamic` compatibility
 
 ### Changed
 - Bumped version to 0.1.3
-- Docker entrypoint now runs `ldd` dependency check before starting the binary to surface missing shared libraries
+- Docker entrypoint now runs `ldd` dependency check, prints CPU/memory diagnostics, and captures binary exit code with signal decoding (SIGILL/SIGKILL/SIGSEGV)
+- Binary stderr is now redirected to stdout in entrypoint to ensure tracing logs and panics are captured in Docker logs
 
 ## [0.1.2] - 2026-06-24
 ### Added

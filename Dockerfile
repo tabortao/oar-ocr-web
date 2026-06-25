@@ -77,6 +77,10 @@ ENV OAR_HOME=/app/models
 ENV LOG_DIR=/app/logs
 ENV LOG_RETENTION_DAYS=30
 
+# ONNX Runtime 动态库路径（ort load-dynamic 模式下通过 dlopen 加载）
+ENV ORT_DYLIB_PATH=/usr/local/lib/libonnxruntime.so
+ENV LD_LIBRARY_PATH=/usr/local/lib
+
 WORKDIR /app
 EXPOSE 3000
 

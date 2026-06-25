@@ -60,12 +60,57 @@ done
 
 echo "=== 启动 oar-ocr-web ==="
 
-# 验证二进制依赖完整性，提前暴露缺失的共享库
-echo "检查二进制依赖..."
-if ! ldd "$(command -v oar-ocr-web)" >/dev/null 2>&1; then
-    echo "[警告] ldd 检查发现问题，详情如下:"
-    ldd "$(command -v oar-ocr-web)" || true
-fi
+# ── 诊断信息（帮助定位启动失败原因）──
+echo "----- 诊断信息 -----"
+echo "二进制路径: $(command -v oar-ocr-web)"
+echo "二进制大小: $(du -h $(command -v oar-ocr-web) | cut -f1)"
 
-# exec 替换当前进程，确保信号正确传递
-exec "$@"
+echo "ldd 依赖检查:"
+ldd "$(command -v oar-ocr-web)" 2>&1 || true
+
+echo "ONNX Runtime 库文件 (/usr/local/lib/):"
+ls -la /usr/local/lib/ 2>/dev/null || echo "  目录为空或不存在"
+echo "ldconfig 缓存中的 onnxruntime:"
+ldconfig -p 2>/dev/null | grep -i onnx || echo "  未在 ldconfig 中找到 onnxruntime"
+
+echo "CPU 信息:"
+grep -m1 "model name" /proc/cpuinfo 2>/dev/null || echo "  无法读取 CPU 信息"
+echo "CPU 指令集:"
+grep -m1 "flags" /proc/cpuinfo 2>/dev/null | tr ' ' '\n' | grep -E '^(avx|avx2|sse4_2|fma)$' | tr '\n' ' ' || echo "  无法读取"
+echo ""
+
+echo "内存限制:"
+cat /sys/fs/cgroup/memory.max 2>/dev/null || cat /sys/fs/cgroup/memory/memory.limit_in_bytes 2>/dev/null || echo "  无法读取"
+echo "环境变量:"
+echo "  OAR_HOME=${OAR_HOME}"
+echo "  PORT=${PORT:-3000}"
+echo "  RUST_LOG=${RUST_LOG}"
+echo "  RUST_BACKTRACE=${RUST_BACKTRACE}"
+echo "  LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-未设置}"
+echo "--------------------"
+
+# 运行二进制并捕获退出码（不使用 exec，以便诊断崩溃原因）
+# 2>&1 将 stderr 重定向到 stdout，确保 tracing 日志和 panic 信息都被捕获
+echo "启动 oar-ocr-web..."
+set +e
+"$@" 2>&1
+EXIT_CODE=$?
+echo "========================================"
+echo "oar-ocr-web 已退出，退出码: $EXIT_CODE"
+if [ $EXIT_CODE -ne 0 ]; then
+    echo "异常退出诊断:"
+    if [ $EXIT_CODE -eq 132 ]; then
+        echo "  -> SIGILL (非法指令): CPU 不支持 ONNX Runtime 所需的指令集 (如 AVX)"
+    elif [ $EXIT_CODE -eq 137 ]; then
+        echo "  -> SIGKILL: 进程被强制杀死 (可能是 OOM 内存不足)"
+    elif [ $EXIT_CODE -eq 139 ]; then
+        echo "  -> SIGSEGV (段错误): 二进制或依赖库存在兼容性问题"
+    elif [ $EXIT_CODE -gt 128 ]; then
+        SIGNAL=$((EXIT_CODE - 128))
+        echo "  -> 被信号 $SIGNAL 杀死"
+    else
+        echo "  -> 程序主动退出 (错误码 $EXIT_CODE)"
+    fi
+    echo "========================================"
+fi
+exit $EXIT_CODE

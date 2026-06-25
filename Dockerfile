@@ -8,6 +8,8 @@ ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /tmp/onnxruntime
 
 # 安装 ONNX Runtime 构建依赖
+# python3-pip: build.py 需要 pip 安装依赖
+# ninja-build: 比 make 更快的构建工具
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
@@ -15,26 +17,54 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     python3 \
+    python3-pip \
+    ninja-build \
     && rm -rf /var/lib/apt/lists/*
 
-# 克隆 ONNX Runtime v1.25.0（含子模块，--shallow-submodules 加速子模块下载）
-RUN git clone --branch v1.25.0 --depth 1 --recursive --shallow-submodules https://github.com/microsoft/onnxruntime.git .
+# 安装 build.py 所需的 Python 依赖
+RUN pip3 install --no-cache-dir --break-system-packages \
+    pyyaml \
+    coloredlogs \
+    packaging
+
+# 克隆 ONNX Runtime v1.25.0（完整克隆含子模块，确保子模块正确初始化）
+RUN git clone --branch v1.25.0 --recursive https://github.com/microsoft/onnxruntime.git .
 
 # 设置编译器标志：禁用 AVX，仅使用 SSE4.2（Intel Celeron N5105 兼容）
-# CMake 在首次配置时会读取 CFLAGS/CXXFLAGS 环境变量初始化 CMAKE_C_FLAGS/CMAKE_CXX_FLAGS
-ENV CFLAGS="-march=x86-64 -msse4.2 -mtune=generic"
-ENV CXXFLAGS="-march=x86-64 -msse4.2 -mtune=generic"
+ENV CFLAGS="-march=x86-64 -msse4.2"
+ENV CXXFLAGS="-march=x86-64 -msse4.2"
 
-# 构建共享库
-# --skip_submodule_sync: 子模块已在 clone --recursive 时初始化，跳过重复同步
+# 验证构建环境
+RUN python3 --version && \
+    python3 -c "import sys; sys.path.insert(0, 'tools/python'); from build_args import parse_arguments; print('build_args import OK')" && \
+    echo "Submodule count: $(git submodule status | wc -l)"
+
+# 构建共享库，捕获完整日志以便诊断错误
+# --cmake_generator Ninja: 使用 Ninja 构建工具（比 make 更快）
+# --skip_submodule_sync: 子模块已在 clone --recursive 时初始化
 # --skip_tests: 跳过测试编译以加速构建
 # --compile_no_warning_as_error: 避免警告导致构建失败
+# 同时通过 cmake_extra_defines 传递编译器标志（双引号确保空格不被分割）
 RUN ./build.sh --config Release \
     --build_shared_lib \
     --parallel $(nproc) \
     --compile_no_warning_as_error \
     --skip_tests \
-    --skip_submodule_sync
+    --skip_submodule_sync \
+    --cmake_generator Ninja \
+    --cmake_extra_defines CMAKE_C_FLAGS="-march=x86-64 -msse4.2" \
+    --cmake_extra_defines CMAKE_CXX_FLAGS="-march=x86-64 -msse4.2" \
+    2>&1 | tee /tmp/build.log; \
+    EXIT_CODE=${PIPESTATUS[0]}; \
+    if [ $EXIT_CODE -ne 0 ]; then \
+        echo ""; \
+        echo "========================================"; \
+        echo "BUILD FAILED (exit code: $EXIT_CODE)"; \
+        echo "=== Last 150 lines of build log ==="; \
+        tail -150 /tmp/build.log; \
+        echo "========================================"; \
+        exit $EXIT_CODE; \
+    fi
 
 # 验证构建产物
 RUN ls -la build/Linux/Release/libonnxruntime.so*

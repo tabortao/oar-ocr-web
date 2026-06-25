@@ -17,13 +17,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3 \
     && rm -rf /var/lib/apt/lists/*
 
-# 克隆 ONNX Runtime v1.25.0（shallow clone 加速下载，build.sh 会同步子模块）
-RUN git clone --branch v1.25.0 --depth 1 https://github.com/microsoft/onnxruntime.git .
+# 克隆 ONNX Runtime v1.25.0（含子模块，--shallow-submodules 加速子模块下载）
+RUN git clone --branch v1.25.0 --depth 1 --recursive --shallow-submodules https://github.com/microsoft/onnxruntime.git .
 
-# 构建共享库，禁用 AVX 指令集
-# -march=x86-64: 基础 x86-64 指令集（不含 AVX）
-# -msse4.2: 启用 SSE4.2（N5105 支持）
-# -mtune=generic: 通用调优
+# 设置编译器标志：禁用 AVX，仅使用 SSE4.2（Intel Celeron N5105 兼容）
+# CMake 在首次配置时会读取 CFLAGS/CXXFLAGS 环境变量初始化 CMAKE_C_FLAGS/CMAKE_CXX_FLAGS
+ENV CFLAGS="-march=x86-64 -msse4.2 -mtune=generic"
+ENV CXXFLAGS="-march=x86-64 -msse4.2 -mtune=generic"
+
+# 构建共享库
+# --skip_submodule_sync: 子模块已在 clone --recursive 时初始化，跳过重复同步
 # --skip_tests: 跳过测试编译以加速构建
 # --compile_no_warning_as_error: 避免警告导致构建失败
 RUN ./build.sh --config Release \
@@ -31,8 +34,7 @@ RUN ./build.sh --config Release \
     --parallel $(nproc) \
     --compile_no_warning_as_error \
     --skip_tests \
-    --cmake_extra_defines 'CMAKE_CXX_FLAGS=-march=x86-64 -msse4.2 -mtune=generic' \
-    --cmake_extra_defines 'CMAKE_C_FLAGS=-march=x86-64 -msse4.2 -mtune=generic'
+    --skip_submodule_sync
 
 # 验证构建产物
 RUN ls -la build/Linux/Release/libonnxruntime.so*

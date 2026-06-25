@@ -1,5 +1,44 @@
-# ─── Build Stage ───
-# ONNX Runtime 2.38+ 需要 glibc 2.38+，Ubuntu 24.04 提供 glibc 2.39
+# ─── Stage 1: Build ONNX Runtime from source (no AVX, SSE4.2 baseline) ───
+# 飞牛NAS 使用 Intel Celeron N5105 (Jasper Lake)，仅支持 SSE4.2，不支持 AVX/AVX2/FMA
+# ort-sys 默认下载的预构建 ONNX Runtime 使用 -mavx2 编译，在 N5105 上触发 SIGILL (exit 132)
+# 因此从源码构建 ONNX Runtime，使用 -march=x86-64 -msse4.2 禁用 AVX 指令集
+FROM ubuntu:24.04 AS ort-builder
+
+ENV DEBIAN_FRONTEND=noninteractive
+WORKDIR /tmp/onnxruntime
+
+# 安装 ONNX Runtime 构建依赖
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    cmake \
+    git \
+    curl \
+    ca-certificates \
+    python3 \
+    && rm -rf /var/lib/apt/lists/*
+
+# 克隆 ONNX Runtime v1.25.0（shallow clone 加速下载，build.sh 会同步子模块）
+RUN git clone --branch v1.25.0 --depth 1 https://github.com/microsoft/onnxruntime.git .
+
+# 构建共享库，禁用 AVX 指令集
+# -march=x86-64: 基础 x86-64 指令集（不含 AVX）
+# -msse4.2: 启用 SSE4.2（N5105 支持）
+# -mtune=generic: 通用调优
+# --skip_tests: 跳过测试编译以加速构建
+# --compile_no_warning_as_error: 避免警告导致构建失败
+RUN ./build.sh --config Release \
+    --build_shared_lib \
+    --parallel $(nproc) \
+    --compile_no_warning_as_error \
+    --skip_tests \
+    --cmake_extra_defines 'CMAKE_CXX_FLAGS=-march=x86-64 -msse4.2 -mtune=generic' \
+    --cmake_extra_defines 'CMAKE_C_FLAGS=-march=x86-64 -msse4.2 -mtune=generic'
+
+# 验证构建产物
+RUN ls -la build/Linux/Release/libonnxruntime.so*
+
+# ─── Stage 2: Build Rust application ───
+# Ubuntu 24.04 提供 glibc 2.39，满足 ONNX Runtime 要求
 FROM ubuntu:24.04 AS builder
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -15,9 +54,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake \
     && rm -rf /var/lib/apt/lists/*
 
-# 安装 Rust stable
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable
 ENV PATH="/root/.cargo/bin:${PATH}"
+
+# 复制自定义构建的 ONNX Runtime 共享库（禁用 AVX）
+COPY --from=ort-builder /tmp/onnxruntime/build/Linux/Release/libonnxruntime.so* /opt/onnxruntime/lib/
+RUN ldconfig
+
+# 设置 ort-sys 使用自定义 ONNX Runtime，跳过预构建下载，强制动态链接
+# ORT_LIB_LOCATION: 指定自定义 .so 所在目录，ort-sys 不再下载预构建包
+# ORT_PREFER_DYNAMIC_LINK=1: 使用动态链接 (cargo:rustc-link-lib=onnxruntime) 而非静态链接
+ENV ORT_LIB_LOCATION=/opt/onnxruntime/lib
+ENV ORT_PREFER_DYNAMIC_LINK=1
 
 # 先复制依赖清单，利用 Docker 缓存层
 COPY Cargo.toml Cargo.lock* ./
@@ -30,24 +78,19 @@ RUN cargo fetch || true
 COPY src/ src/
 COPY static/ static/
 
-# Release 构建 (auto-download 在 Cargo.toml 中已声明)
+# Release 构建
 RUN cargo build --release
 
-# 收集 ONNX Runtime 共享库 (ort-sys 在构建时下载，运行时需要)
-# ort 默认动态链接 libonnxruntime.so，必须复制到运行时镜像
-RUN mkdir -p /app/ort-lib && \
-    find /app/target -name "libonnxruntime.so*" -exec cp -L {} /app/ort-lib/ \; && \
-    ls -la /app/ort-lib/
-
-# ─── Runtime Stage ───
+# ─── Stage 3: Runtime ───
 # 必须与 builder 使用相同或更高 glibc 版本
 FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# ONNX Runtime 运行时依赖 + TLS 支持（ureq/oar-ocr auto-download 需要）
-# libstdc++6: ONNX Runtime C++ 运行时依赖
+# 运行时依赖
 # libgomp1: OpenMP (ONNX Runtime 多线程)
+# libstdc++6: ONNX Runtime C++ 运行时依赖
+# libssl3: TLS 支持（ureq/oar-ocr auto-download 需要）
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     libssl3 \
@@ -56,11 +99,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
-# 复制构建产物
+# 复制二进制
 COPY --from=builder /app/target/release/oar-ocr-web /usr/local/bin/oar-ocr-web
 
 # 复制 ONNX Runtime 共享库并注册到动态链接器缓存
-COPY --from=builder /app/ort-lib/ /usr/local/lib/
+COPY --from=builder /opt/onnxruntime/lib/libonnxruntime.so* /usr/local/lib/
 RUN ldconfig
 
 # 复制静态文件
@@ -77,8 +120,7 @@ ENV OAR_HOME=/app/models
 ENV LOG_DIR=/app/logs
 ENV LOG_RETENTION_DAYS=30
 
-# ONNX Runtime 动态库路径（ort load-dynamic 模式下通过 dlopen 加载）
-ENV ORT_DYLIB_PATH=/usr/local/lib/libonnxruntime.so
+# 动态库搜索路径
 ENV LD_LIBRARY_PATH=/usr/local/lib
 
 WORKDIR /app

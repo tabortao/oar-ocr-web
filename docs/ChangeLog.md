@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.3] - 2026-06-25
+### Fixed
+- Docker container crash loop: `ort-sys` downloads ONNX Runtime as a shared library (`libonnxruntime.so`) at build time, but only the binary was copied to the runtime image — now the `.so` files are collected from the builder stage and copied to `/usr/local/lib/` with `ldconfig` registration
+- Added `libstdc++6` to runtime image explicitly (ONNX Runtime C++ dependency)
+
+### Changed
+- Bumped version to 0.1.3
+- Docker entrypoint now runs `ldd` dependency check before starting the binary to surface missing shared libraries
+
 ## [0.1.2] - 2026-06-24
 ### Added
 - Favicon and logo support; PWA manifest, Service Worker, and responsive mobile layout

@@ -59,4 +59,13 @@ for f in "$MODEL_DIR"/*; do
 done
 
 echo "=== 启动 oar-ocr-web ==="
+
+# 验证二进制依赖完整性，提前暴露缺失的共享库
+echo "检查二进制依赖..."
+if ! ldd "$(command -v oar-ocr-web)" >/dev/null 2>&1; then
+    echo "[警告] ldd 检查发现问题，详情如下:"
+    ldd "$(command -v oar-ocr-web)" || true
+fi
+
+# exec 替换当前进程，确保信号正确传递
 exec "$@"

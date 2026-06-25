@@ -33,6 +33,12 @@ COPY static/ static/
 # Release 构建 (auto-download 在 Cargo.toml 中已声明)
 RUN cargo build --release
 
+# 收集 ONNX Runtime 共享库 (ort-sys 在构建时下载，运行时需要)
+# ort 默认动态链接 libonnxruntime.so，必须复制到运行时镜像
+RUN mkdir -p /app/ort-lib && \
+    find /app/target -name "libonnxruntime.so*" -exec cp -L {} /app/ort-lib/ \; && \
+    ls -la /app/ort-lib/
+
 # ─── Runtime Stage ───
 # 必须与 builder 使用相同或更高 glibc 版本
 FROM ubuntu:24.04
@@ -40,15 +46,22 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 # ONNX Runtime 运行时依赖 + TLS 支持（ureq/oar-ocr auto-download 需要）
+# libstdc++6: ONNX Runtime C++ 运行时依赖
+# libgomp1: OpenMP (ONNX Runtime 多线程)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libgomp1 \
     libssl3 \
+    libstdc++6 \
     ca-certificates \
     curl \
     && rm -rf /var/lib/apt/lists/*
 
 # 复制构建产物
 COPY --from=builder /app/target/release/oar-ocr-web /usr/local/bin/oar-ocr-web
+
+# 复制 ONNX Runtime 共享库并注册到动态链接器缓存
+COPY --from=builder /app/ort-lib/ /usr/local/lib/
+RUN ldconfig
 
 # 复制静态文件
 COPY static/ /app/static/

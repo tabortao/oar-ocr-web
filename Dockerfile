@@ -58,6 +58,7 @@ RUN ./build.sh --config Release \
     --skip_tests \
     --skip_submodule_sync \
     --cmake_generator Ninja \
+    --allow_running_as_root \
     > /tmp/build.log 2>&1 \
     || (echo "========================================" && \
         echo "BUILD FAILED - Last 200 lines:" && \

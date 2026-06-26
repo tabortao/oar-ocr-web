@@ -34,11 +34,15 @@ RUN git clone --branch v1.25.0 --recursive https://github.com/microsoft/onnxrunt
 ENV CFLAGS="-march=x86-64 -msse4.2"
 ENV CXXFLAGS="-march=x86-64 -msse4.2"
 
-# 验证构建环境（仅检查文件存在，不导入模块）
-RUN python3 --version && \
-    ls tools/python/build_args.py && \
-    ls tools/ci_build/build.py && \
-    echo "Submodule count: $(git submodule status | wc -l)"
+# 诊断：查看目录结构，定位 build_args 模块位置
+RUN echo "=== tools/python/ ===" && \
+    ls -la tools/python/ 2>/dev/null || echo "tools/python/ not found" && \
+    echo "=== find build_args ===" && \
+    find . -name "build_args*" -not -path "./.git/*" 2>/dev/null && \
+    echo "=== find build.py ===" && \
+    find . -name "build.py" -not -path "./.git/*" 2>/dev/null && \
+    echo "=== Submodule count ===" && \
+    git submodule status | wc -l
 
 # 构建共享库，捕获完整日志以便诊断错误
 # --cmake_generator Ninja: 使用 Ninja 构建工具（比 make 更快）

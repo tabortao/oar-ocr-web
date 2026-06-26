@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.4] - 2026-06-26
+### Fixed
+- **Docker container RSS stays at ~2.4GB after structure analysis completes**: Even though `release_structure()` was already invoked after each `/api/structure*` request, the container's resident set size (RSS) refused to drop. Root cause: ONNX Runtime's internal arena allocator and glibc `malloc` both retain freed memory in their free-lists instead of returning it to the OS. Fix: explicitly `drop()` the local `Arc<OARStructure>` before clearing the cache, then call `malloc_trim(0)` (Linux FFI) to force glibc to release all reclaimable free heap back to the kernel. RSS now drops back to the OCR-engine-only baseline (~80MB) within milliseconds of request completion.
+- **Text OCR RSS grows unbounded (64MB → 1.2GB after multiple requests) on both Windows and Linux**: Three root causes identified and fixed:
+  1. **ORT `enable_mem_pattern` default=true**: caches arena blocks for every unique variable-width input shape (text line lengths vary per image). Fixed by setting `with_memory_pattern(false)`.
+  2. **ORT CPU arena allocator default=enabled**: `oar-ocr-core` did not register any execution provider when `execution_providers=None`, causing ORT to use its default CPU EP with arena **enabled**. Fixed by explicitly registering `OrtExecutionProvider::CPU` (which calls `DisableCpuMemArena` in ort 2.0.0-rc.12).
+  3. **System allocator free-list not returned to OS**: glibc `malloc` (Linux) and Windows Heap both retain freed chunks in their free-lists. Fixed by calling `malloc_trim(0)` on Linux and `HeapCompact(GetProcessHeap(), 0)` on Windows after every OCR/structure request.
+- Added cross-platform RSS diagnostics: reads `/proc/self/status` VmRSS on Linux, `GetProcessMemoryInfo` WorkingSetSize on Windows. Log level is `info` when >10MB is reclaimed, `debug` otherwise.
+
+### Changed
+- Restructured structure-engine release flow into `release_structure_and_trim()`: drop local Arc → clear cache → trim. Previous order left the local `structure` variable alive until end-of-function, so the OARStructure destructor never ran before the trim call.
+- Added `build_ort_session_config()` in `ocr_engine.rs`: configures both OCR and structure engines with `enable_mem_pattern=false`, `DisableCpuMemArena` (via explicit CPU EP registration), `GraphOptimizationLevel::Level3`, and `intra_threads=available_parallelism` to balance speed and memory release.
+- `trim_memory_to_os()` now supports Windows (`HeapCompact` + `GetProcessMemoryInfo` via FFI to kernel32.dll and psapi.dll) in addition to Linux (`malloc_trim` + `/proc/self/status`).
+- Massively expanded `docs/api.md` with concrete examples for image-URL (图床链接) and Windows local path usage:
+  - Added top-level "Supported image sources" matrix (multipart / base64 / URL)
+  - Windows PowerShell `curl.exe` and `Invoke-RestMethod` examples for both `/api/ocr*` and `/api/structure*`
+  - Python `requests` examples mixing local-file base64 and remote URL in one request
+  - JavaScript `fetch` examples for browser and Node.js
+  - Response field tables for OCR and structure endpoints
+  - Performance & memory behavior section documenting the lazy-load + auto-trim policy
+- Bumped version to 0.1.4
+
 ## [0.1.3] - 2026-06-25
 ### Fixed
 - **Docker SIGILL crash on non-AVX CPUs (e.g. Intel Celeron N5105 / fnNAS)**: The prebuilt ONNX Runtime downloaded by `ort-sys` is compiled with `-mavx2`, which triggers `SIGILL` (exit code 132) on CPUs without AVX/AVX2/FMA support. Now ONNX Runtime v1.25.0 is built from source in a dedicated Docker stage with `-march=x86-64 -msse4.2 -mtune=generic` (SSE4.2 baseline, no AVX), and `ort-sys` is configured via `ORT_LIB_LOCATION` + `ORT_PREFER_DYNAMIC_LINK=1` to link against this custom build instead of the prebuilt artifact

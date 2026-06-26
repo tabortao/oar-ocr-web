@@ -197,6 +197,9 @@ pub async fn ocr_handler(
 
     let img = img_from_bytes(&bytes)?;
     let results = do_ocr(&state.ocr, img)?;
+    // 释放本次请求的工作内存（图像缓冲区、ORT 中间张量）到 OS，
+    // 避免 glibc free-list 累积导致 RSS 随请求数无限增长
+    trim_memory_to_os();
     let duration_ms = start.elapsed().as_millis() as u64;
 
     let total_text_len: usize = results.iter().map(|r| r.text.len()).sum();
@@ -264,6 +267,8 @@ pub async fn ocr_json_handler(
         all_results.extend(page_results);
     }
 
+    // 释放本次请求的工作内存（图像缓冲区、ORT 中间张量）到 OS
+    trim_memory_to_os();
     let duration_ms = start.elapsed().as_millis() as u64;
     let total_text_len: usize = all_results.iter().map(|r| r.text.len()).sum();
 
@@ -313,8 +318,160 @@ async fn get_or_load_structure(
 async fn release_structure(cache: &tokio::sync::Mutex<Option<Arc<OARStructure>>>) {
     let mut guard = cache.lock().await;
     if guard.take().is_some() {
-        tracing::info!("结构引擎已释放，内存已回收");
+        tracing::info!("结构引擎已从缓存移除，等待 drop 释放内存");
     }
+}
+
+// ===== 内存回收 =====
+//
+// ONNX Runtime 的 arena allocator 和系统 malloc（glibc / Windows Heap）都会把
+// 已释放的内存块留在 free-list 中，不主动归还给操作系统，导致进程 RSS 居高不下。
+// 我们已在 ORT session 配置中禁用 arena 和 mem_pattern，使所有分配走 malloc/free；
+// 此处再通过平台 API 强制把 free-list 中的空闲堆归还给 OS：
+//   - Linux:   malloc_trim(0)   — 让 glibc 调用 sbrk/munmap 归还堆顶空闲页
+//   - Windows: HeapCompact()    — 让 NT 堆管理器把空闲段解提交（decommit）
+
+#[cfg(target_os = "linux")]
+extern "C" {
+    fn malloc_trim(pad: usize) -> ::std::os::raw::c_int;
+}
+
+// Windows Heap API（kernel32.dll）
+#[cfg(target_os = "windows")]
+#[link(name = "kernel32")]
+extern "system" {
+    fn GetProcessHeap() -> isize;
+    fn HeapCompact(heap: isize, flags: u32) -> usize;
+}
+
+// Windows 进程内存信息（psapi.dll）
+#[cfg(target_os = "windows")]
+#[link(name = "psapi")]
+extern "system" {
+    fn GetProcessMemoryInfo(
+        handle: isize,
+        counters: *mut WinProcessMemoryCounters,
+        cb: u32,
+    ) -> i32;
+}
+
+#[cfg(target_os = "windows")]
+#[repr(C)]
+struct WinProcessMemoryCounters {
+    cb: u32,
+    page_fault_count: u32,
+    peak_working_set_size: usize,
+    working_set_size: usize,
+    quota_peak_paged_pool_usage: usize,
+    quota_paged_pool_usage: usize,
+    quota_peak_non_paged_pool_usage: usize,
+    quota_non_paged_pool_usage: usize,
+    pagefile_usage: usize,
+    peak_pagefile_usage: usize,
+}
+
+#[cfg(target_os = "windows")]
+extern "system" {
+    fn GetCurrentProcess() -> isize;
+}
+
+/// 强制把系统分配器的空闲堆归还给操作系统。
+/// - Linux:   `malloc_trim(0)`
+/// - Windows: `HeapCompact(GetProcessHeap(), 0)`
+/// - macOS:   无操作（系统自管理）
+fn trim_memory_to_os() {
+    let rss_before = read_rss_kb();
+
+    #[cfg(target_os = "linux")]
+    unsafe {
+        malloc_trim(0);
+    }
+
+    #[cfg(target_os = "windows")]
+    unsafe {
+        let heap = GetProcessHeap();
+        HeapCompact(heap, 0);
+    }
+
+    let rss_after = read_rss_kb();
+    let drop_kb = rss_before.unwrap_or(0).saturating_sub(rss_after.unwrap_or(0));
+    // 仅在释放超过 10MB 时输出 info 日志，避免每次请求都刷屏
+    if drop_kb > 10_000 {
+        tracing::info!(
+            "内存回收完成, RSS: {} KB -> {} KB (释放 {} MB)",
+            rss_before.unwrap_or(0),
+            rss_after.unwrap_or(0),
+            drop_kb / 1024
+        );
+    } else {
+        tracing::debug!(
+            "内存回收完成, RSS: {} KB -> {} KB",
+            rss_before.unwrap_or(0),
+            rss_after.unwrap_or(0)
+        );
+    }
+}
+
+/// 读取当前进程的 RSS（驻留集大小），单位 KB。
+/// - Linux:   读取 `/proc/self/status` 的 VmRSS 字段
+/// - Windows: 调用 `GetProcessMemoryInfo` 获取 WorkingSetSize
+/// - macOS:   返回 None
+#[cfg(target_os = "linux")]
+fn read_rss_kb() -> Option<u64> {
+    let status = std::fs::read_to_string("/proc/self/status").ok()?;
+    for line in status.lines() {
+        if let Some(rest) = line.strip_prefix("VmRSS:") {
+            let n: String = rest.chars().filter(|c| c.is_ascii_digit()).collect();
+            return n.parse().ok();
+        }
+    }
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn read_rss_kb() -> Option<u64> {
+    let mut counters = WinProcessMemoryCounters {
+        cb: std::mem::size_of::<WinProcessMemoryCounters>() as u32,
+        page_fault_count: 0,
+        peak_working_set_size: 0,
+        working_set_size: 0,
+        quota_peak_paged_pool_usage: 0,
+        quota_paged_pool_usage: 0,
+        quota_peak_non_paged_pool_usage: 0,
+        quota_non_paged_pool_usage: 0,
+        pagefile_usage: 0,
+        peak_pagefile_usage: 0,
+    };
+    unsafe {
+        let handle = GetCurrentProcess();
+        if GetProcessMemoryInfo(handle, &mut counters, counters.cb) != 0 {
+            Some((counters.working_set_size / 1024) as u64)
+        } else {
+            None
+        }
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "windows")))]
+fn read_rss_kb() -> Option<u64> {
+    None
+}
+
+/// 释放结构引擎并强制归还内存到 OS。
+/// 调用顺序：先 drop 本地 Arc（触发 OARStructure 析构）→ 再清空缓存 → 最后 trim。
+async fn release_structure_and_trim(
+    cache: &tokio::sync::Mutex<Option<Arc<OARStructure>>>,
+    structure: Arc<OARStructure>,
+) {
+    // 1. 显式 drop 本地 Arc。若此时缓存仍持有引用，refcount 仅减 1；
+    //    若缓存已被清空（并发场景），refcount 减为 0，触发 OARStructure drop。
+    drop(structure);
+
+    // 2. 清空缓存中的引用（若存在）
+    release_structure(cache).await;
+
+    // 3. 强制 glibc 归还空闲堆内存到 OS（解决 Docker RSS 不下降问题）
+    trim_memory_to_os();
 }
 
 // ===== 结构 OCR (multipart) =====
@@ -335,7 +492,8 @@ pub async fn structure_handler(
 
     let structure = get_or_load_structure(&state.structure_cache).await?;
     let result = do_structure(&structure, img)?;
-    release_structure(&state.structure_cache).await;
+    // 释放结构引擎并强制归还内存到 OS（解决 Docker 内存不下降问题）
+    release_structure_and_trim(&state.structure_cache, structure).await;
 
     let duration_ms = start.elapsed().as_millis() as u64;
     // 从响应中提取统计信息
@@ -385,7 +543,8 @@ pub async fn structure_json_handler(
 
     let structure = get_or_load_structure(&state.structure_cache).await?;
     let result = do_structure(&structure, img)?;
-    release_structure(&state.structure_cache).await;
+    // 释放结构引擎并强制归还内存到 OS（解决 Docker 内存不下降问题）
+    release_structure_and_trim(&state.structure_cache, structure).await;
 
     let duration_ms = start.elapsed().as_millis() as u64;
     let result_count = result.total_layout.unwrap_or(0) + result.total_tables.unwrap_or(0);

@@ -1,7 +1,38 @@
+use oar_ocr::core::config::{OrtExecutionProvider, OrtGraphOptimizationLevel, OrtSessionConfig};
 use oar_ocr::domain::tasks::TextDetectionConfig;
 use oar_ocr::oarocr::{OAROCR, OAROCRBuilder, OARStructure, OARStructureBuilder};
 use oar_ocr::prelude::OCRError;
 use std::sync::Arc;
+
+/// 构建 ONNX Runtime session 配置，关闭内存模式缓存和 arena 分配器。
+///
+/// 三项关键配置解决常驻 OCR 引擎的 RSS 无限增长问题：
+///
+/// 1. `enable_mem_pattern=false` — 关闭 ORT 内存模式缓存。OCR 识别模型输入宽度随文本行
+///    长度变化，默认的 mem_pattern 会为每个新形状缓存 arena 块且永不释放。
+///
+/// 2. 显式注册 `CPU` EP — `oar-ocr-core` 在 `execution_providers=None` 时不注册任何 EP，
+///    ORT 默认 CPU EP 的 arena 是**启用**的。显式注册 `OrtExecutionProvider::CPU` 会触发
+///    `DisableCpuMemArena`（ort 2.0.0-rc.12 中 `CPU::default()` 的 `use_arena=false`），
+///    使所有分配走 malloc/free 而非 arena 池。
+///
+/// 3. `malloc_trim(0)` / `HeapCompact` — 在 routes 层每次请求后调用，把 glibc/Windows
+///    heap 的 free-list 归还给 OS。
+///
+/// 保留 Level3 图优化与 intra-op 多线程以兼顾速度。
+fn build_ort_session_config() -> OrtSessionConfig {
+    OrtSessionConfig::new()
+        .with_memory_pattern(false)
+        .with_optimization_level(OrtGraphOptimizationLevel::Level3)
+        // 显式注册 CPU EP，触发 DisableCpuMemArena（禁用 arena 分配器）
+        .with_execution_providers(vec![OrtExecutionProvider::CPU])
+        // intra-op 线程数：使用全部逻辑核心加速单图推理
+        .with_intra_threads(
+            std::thread::available_parallelism()
+                .map(|n| n.get())
+                .unwrap_or(4),
+        )
+}
 
 /// 构建 PP-OCRv6 small OCR 引擎
 ///
@@ -24,9 +55,10 @@ pub fn build_ocr_engine() -> Result<Arc<OAROCR>, OCRError> {
     )
     .text_detection_config(det_config)
     .return_word_box(false) // 不返回单字框，提高性能
+    .ort_session(build_ort_session_config())
     .build()?;
 
-    tracing::info!("OCR 引擎初始化完成 (PP-OCRv6 small)");
+    tracing::info!("OCR 引擎初始化完成 (PP-OCRv6 small, mem_pattern=off, arena=off)");
     Ok(Arc::new(ocr))
 }
 
@@ -64,8 +96,9 @@ pub fn build_structure_engine() -> Result<Arc<OARStructure>, OCRError> {
             "ppocrv6_dict.txt",
         )
         .text_detection_config(det_config)
+        .ort_session(build_ort_session_config())
         .build()?;
 
-    tracing::info!("结构 OCR 引擎初始化完成 (PP-DocLayout_plus-L + SLANet_plus + PP-FormulaNet_plus-S)");
+    tracing::info!("结构 OCR 引擎初始化完成 (PP-DocLayout_plus-L + SLANet_plus + PP-FormulaNet_plus-S, mem_pattern=off, arena=off)");
     Ok(Arc::new(structure))
 }

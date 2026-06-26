@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.3] - 2026-06-25
 ### Fixed
-- **Docker SIGILL crash on non-AVX CPUs (e.g. Intel Celeron N5105 / 飞牛NAS)**: The prebuilt ONNX Runtime downloaded by `ort-sys` is compiled with `-mavx2`, which triggers `SIGILL` (exit code 132) on CPUs without AVX/AVX2/FMA support. Now ONNX Runtime v1.25.0 is built from source in a dedicated Docker stage with `-march=x86-64 -msse4.2 -mtune=generic` (SSE4.2 baseline, no AVX), and `ort-sys` is configured via `ORT_LIB_LOCATION` + `ORT_PREFER_DYNAMIC_LINK=1` to link against this custom build instead of the prebuilt artifact
+- **Docker SIGILL crash on non-AVX CPUs (e.g. Intel Celeron N5105 / fnNAS)**: The prebuilt ONNX Runtime downloaded by `ort-sys` is compiled with `-mavx2`, which triggers `SIGILL` (exit code 132) on CPUs without AVX/AVX2/FMA support. Now ONNX Runtime v1.25.0 is built from source in a dedicated Docker stage with `-march=x86-64 -msse4.2 -mtune=generic` (SSE4.2 baseline, no AVX), and `ort-sys` is configured via `ORT_LIB_LOCATION` + `ORT_PREFER_DYNAMIC_LINK=1` to link against this custom build instead of the prebuilt artifact
 - Docker container crash loop: `.so` files are now copied from the custom ONNX Runtime build stage to `/usr/local/lib/` with `ldconfig` registration
 - Added `libstdc++6` and `libgomp1` to runtime image (ONNX Runtime C++ and OpenMP dependencies)
 

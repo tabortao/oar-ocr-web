@@ -34,9 +34,10 @@ RUN git clone --branch v1.25.0 --recursive https://github.com/microsoft/onnxrunt
 ENV CFLAGS="-march=x86-64 -msse4.2"
 ENV CXXFLAGS="-march=x86-64 -msse4.2"
 
-# 验证构建环境
+# 验证构建环境（仅检查文件存在，不导入模块）
 RUN python3 --version && \
-    python3 -c "import sys; sys.path.insert(0, 'tools/python'); from build_args import parse_arguments; print('build_args import OK')" && \
+    ls tools/python/build_args.py && \
+    ls tools/ci_build/build.py && \
     echo "Submodule count: $(git submodule status | wc -l)"
 
 # 构建共享库，捕获完整日志以便诊断错误

@@ -45,11 +45,12 @@ RUN echo "=== tools/python/ ===" && \
     git submodule status | wc -l
 
 # 构建共享库，捕获完整日志以便诊断错误
+# 注意：Docker 默认使用 /bin/sh (dash)，不支持 PIPESTATUS，用 || 捕获错误
 # --cmake_generator Ninja: 使用 Ninja 构建工具（比 make 更快）
 # --skip_submodule_sync: 子模块已在 clone --recursive 时初始化
 # --skip_tests: 跳过测试编译以加速构建
 # --compile_no_warning_as_error: 避免警告导致构建失败
-# 同时通过 cmake_extra_defines 传递编译器标志（双引号确保空格不被分割）
+# 编译器标志通过 CFLAGS/CXXFLAGS 环境变量传递（CMake 首次配置时读取）
 RUN ./build.sh --config Release \
     --build_shared_lib \
     --parallel $(nproc) \
@@ -57,19 +58,12 @@ RUN ./build.sh --config Release \
     --skip_tests \
     --skip_submodule_sync \
     --cmake_generator Ninja \
-    --cmake_extra_defines CMAKE_C_FLAGS="-march=x86-64 -msse4.2" \
-    --cmake_extra_defines CMAKE_CXX_FLAGS="-march=x86-64 -msse4.2" \
-    2>&1 | tee /tmp/build.log; \
-    EXIT_CODE=${PIPESTATUS[0]}; \
-    if [ $EXIT_CODE -ne 0 ]; then \
-        echo ""; \
-        echo "========================================"; \
-        echo "BUILD FAILED (exit code: $EXIT_CODE)"; \
-        echo "=== Last 150 lines of build log ==="; \
-        tail -150 /tmp/build.log; \
-        echo "========================================"; \
-        exit $EXIT_CODE; \
-    fi
+    > /tmp/build.log 2>&1 \
+    || (echo "========================================" && \
+        echo "BUILD FAILED - Last 200 lines:" && \
+        echo "========================================" && \
+        tail -200 /tmp/build.log && \
+        false)
 
 # 验证构建产物
 RUN ls -la build/Linux/Release/libonnxruntime.so*
